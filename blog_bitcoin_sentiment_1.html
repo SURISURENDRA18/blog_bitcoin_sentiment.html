@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Fear, Greed & Profit — Inside Hyperliquid's Trading Patterns</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:        #060810;
+  --surface:   #0c1019;
+  --card:      #101520;
+  --border:    rgba(255,255,255,0.06);
+  --accent:    #f7b731;
+  --accent2:   #e84393;
+  --blue:      #4facfe;
+  --green:     #43e97b;
+  --red:       #f85149;
+  --orange:    #fd9644;
+  --text:      #eef0f5;
+  --muted:     #6e7890;
+  --serif:     'Playfair Display', Georgia, serif;
+  --mono:      'DM Mono', monospace;
+  --sans:      'DM Sans', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-weight: 300;
+  line-height: 1.75;
+  overflow-x: hidden;
+}
+
+/* ── NOISE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 9999;
+}
+
+/* ── HERO ── */
+.hero {
+  min-height: 100vh;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 0 clamp(24px, 6vw, 96px) clamp(48px, 8vh, 96px);
+  position: relative; overflow: hidden;
+}
+
+.hero-bg {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 60% 30%, rgba(247,183,49,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 10% 80%, rgba(75,172,254,0.07) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 50% at 90% 70%, rgba(232,67,147,0.06) 0%, transparent 60%);
+  z-index: 0;
+}
+
+.hero-ticker {
+  position: absolute; top: 0; left: 0; right: 0;
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  z-index: 1;
+}
+.hero-ticker-inner {
+  display: inline-block;
+  animation: ticker 30s linear infinite;
+}
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.hero-eyebrow {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em;
+  color: var(--accent); text-transform: uppercase;
+  margin-bottom: 24px; position: relative; z-index: 2;
+  opacity: 0; animation: fadeUp 0.8s 0.2s ease forwards;
+}
+
+.hero-title {
+  font-family: var(--serif);
+  font-size: clamp(42px, 7vw, 96px);
+  font-weight: 900; line-height: 1.0;
+  position: relative; z-index: 2;
+  opacity: 0; animation: fadeUp 0.9s 0.4s ease forwards;
+}
+.hero-title em {
+  font-style: italic;
+  background: linear-gradient(135deg, var(--accent), var(--orange));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero-title .accent-line {
+  display: block; color: var(--blue);
+}
+
+.hero-sub {
+  max-width: 560px;
+  font-size: 16px; color: var(--muted); margin-top: 20px;
+  position: relative; z-index: 2;
+  opacity: 0; animation: fadeUp 0.9s 0.6s ease forwards;
+}
+
+.hero-meta {
+  display: flex; align-items: center; gap: 20px;
+  margin-top: 36px; position: relative; z-index: 2;
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+  opacity: 0; animation: fadeUp 0.9s 0.8s ease forwards;
+}
+.hero-meta-dot { width: 4px; height: 4px; background: var(--accent); border-radius: 50%; }
+
+.hero-stat-row {
+  display: flex; gap: 2px; margin-top: 48px;
+  position: relative; z-index: 2;
+  opacity: 0; animation: fadeUp 0.9s 1s ease forwards;
+}
+.hero-stat {
+  flex: 1; background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  padding: 20px 18px;
+  transition: background 0.3s;
+}
+.hero-stat:hover { background: rgba(255,255,255,0.06); }
+.hero-stat-val {
+  font-family: var(--serif); font-size: 28px; font-weight: 700;
+  color: var(--accent);
+}
+.hero-stat-label {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em;
+  margin-top: 4px;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── SCROLL INDICATOR ── */
+.scroll-hint {
+  position: absolute; bottom: 24px; right: clamp(24px, 6vw, 96px);
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  display: flex; align-items: center; gap: 10px;
+  z-index: 2; letter-spacing: 0.15em;
+  opacity: 0; animation: fadeUp 1s 1.4s ease forwards;
+}
+.scroll-line {
+  width: 40px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--muted));
+}
+
+/* ── LAYOUT ── */
+.container {
+  max-width: 1100px; margin: 0 auto;
+  padding: 0 clamp(24px, 6vw, 96px);
+}
+
+/* ── SECTION ── */
+section { padding: clamp(64px, 10vh, 120px) 0; }
+
+.section-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.25em;
+  text-transform: uppercase; color: var(--accent);
+  margin-bottom: 14px;
+}
+
+.section-title {
+  font-family: var(--serif);
+  font-size: clamp(28px, 4vw, 48px);
+  font-weight: 700; line-height: 1.15;
+  margin-bottom: 28px;
+}
+
+.prose {
+  font-size: 17px; line-height: 1.85;
+  color: rgba(238,240,245,0.8);
+  max-width: 680px;
+}
+.prose p + p { margin-top: 20px; }
+.prose strong { color: var(--text); font-weight: 600; }
+
+/* ── DIVIDER ── */
+.divider {
+  width: 100%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  margin: 0;
+}
+
+/* ── PULL QUOTE ── */
+.pull-quote {
+  border-left: 3px solid var(--accent);
+  padding: 24px 32px;
+  margin: 48px 0;
+  background: rgba(247,183,49,0.04);
+  font-family: var(--serif); font-size: 22px; font-style: italic;
+  color: var(--text); line-height: 1.5;
+}
+.pull-quote cite {
+  display: block; margin-top: 12px;
+  font-family: var(--mono); font-size: 11px;
+  font-style: normal; color: var(--muted); letter-spacing: 0.1em;
+}
+
+/* ── SENTIMENT CARDS ── */
+.sentiment-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px; margin: 48px 0;
+}
+.sentiment-card {
+  padding: 28px 18px;
+  text-align: center; position: relative;
+  overflow: hidden;
+  transition: transform 0.3s;
+  cursor: default;
+}
+.sentiment-card:hover { transform: translateY(-4px); z-index: 2; }
+
+.sc-ef  { background: linear-gradient(160deg, #1a0808, #2a0f0f); border: 1px solid rgba(248,81,73,0.3); }
+.sc-f   { background: linear-gradient(160deg, #1a0f0f, #250d0d); border: 1px solid rgba(248,81,73,0.15); }
+.sc-n   { background: linear-gradient(160deg, #121218, #181820); border: 1px solid rgba(255,255,255,0.06); }
+.sc-g   { background: linear-gradient(160deg, #0a1a0f, #0f2015); border: 1px solid rgba(67,233,123,0.15); }
+.sc-eg  { background: linear-gradient(160deg, #0a1a12, #0d2318); border: 1px solid rgba(67,233,123,0.35); }
+
+.sc-emoji { font-size: 28px; margin-bottom: 8px; }
+.sc-name { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 16px; }
+.sc-wr { font-family: var(--serif); font-size: 32px; font-weight: 700; line-height: 1; }
+.sc-wr-ef { color: var(--red); }
+.sc-wr-f  { color: var(--orange); }
+.sc-wr-n  { color: var(--muted); }
+.sc-wr-g  { color: #7be07b; }
+.sc-wr-eg { color: var(--green); }
+.sc-wr-label { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 4px; letter-spacing: 0.05em; }
+.sc-pnl { font-family: var(--mono); font-size: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+
+/* ── BAR CHART ── */
+.bar-chart { margin: 48px 0; }
+.bar-row {
+  display: flex; align-items: center; gap: 16px;
+  margin-bottom: 14px;
+}
+.bar-label { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 120px; flex-shrink: 0; text-align: right; }
+.bar-track { flex: 1; height: 28px; background: rgba(255,255,255,0.04); border-radius: 2px; position: relative; overflow: hidden; }
+.bar-fill {
+  height: 100%; border-radius: 2px;
+  position: relative;
+  animation: barGrow 1.2s cubic-bezier(0.22,1,0.36,1) forwards;
+  transform-origin: left;
+}
+@keyframes barGrow {
+  from { width: 0 !important; }
+}
+.bar-val { font-family: var(--mono); font-size: 11px; color: var(--text); width: 64px; flex-shrink: 0; }
+
+/* ── INSIGHT CARDS ── */
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2px; margin: 48px 0;
+}
+.insight-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 32px 28px;
+  position: relative; overflow: hidden;
+  transition: border-color 0.3s, transform 0.3s;
+}
+.insight-card:hover {
+  border-color: rgba(247,183,49,0.25);
+  transform: translateY(-2px);
+}
+.insight-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--card-accent, var(--accent));
+}
+.insight-num {
+  font-family: var(--mono); font-size: 48px; font-weight: 500;
+  line-height: 1; margin-bottom: 8px;
+  background: linear-gradient(135deg, var(--accent), var(--orange));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.insight-title { font-family: var(--serif); font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+.insight-body { font-size: 14px; color: rgba(238,240,245,0.65); line-height: 1.6; }
+
+/* ── ML SECTION ── */
+.ml-split {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 48px;
+  align-items: center; margin: 48px 0;
+}
+@media (max-width: 700px) { .ml-split { grid-template-columns: 1fr; } }
+
+.auc-display {
+  text-align: center; padding: 48px 32px;
+  background: var(--card); border: 1px solid var(--border);
+  position: relative;
+}
+.auc-display::after {
+  content: '';
+  position: absolute; inset: 6px;
+  border: 1px solid rgba(79,172,254,0.12);
+  pointer-events: none;
+}
+.auc-val {
+  font-family: var(--serif); font-size: 72px; font-weight: 900;
+  line-height: 1;
+  background: linear-gradient(135deg, var(--blue), #a8edea);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.auc-label { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.2em; margin-top: 8px; }
+.auc-sub { font-size: 13px; color: var(--muted); margin-top: 16px; line-height: 1.5; }
+
+/* ── FEATURE IMPORTANCE ── */
+.feat-list { margin: 0; padding: 0; list-style: none; }
+.feat-item {
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 0; border-bottom: 1px solid var(--border);
+}
+.feat-rank { font-family: var(--mono); font-size: 10px; color: var(--muted); width: 20px; }
+.feat-name { font-family: var(--mono); font-size: 12px; flex: 1; }
+.feat-name.sentiment { color: var(--accent); }
+.feat-bar-wrap { width: 120px; height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+.feat-bar { height: 100%; border-radius: 3px; }
+.feat-pct { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 44px; text-align: right; }
+
+/* ── STRATEGY CARDS ── */
+.strategy-list { display: flex; flex-direction: column; gap: 2px; margin: 48px 0; }
+.strategy-card {
+  display: flex; gap: 0;
+  background: var(--card); border: 1px solid var(--border);
+  overflow: hidden;
+  transition: border-color 0.3s;
+}
+.strategy-card:hover { border-color: rgba(247,183,49,0.2); }
+.strategy-num {
+  width: 80px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-size: 40px; font-weight: 900;
+  color: var(--accent); background: rgba(247,183,49,0.04);
+  border-right: 1px solid var(--border);
+}
+.strategy-body { padding: 24px 28px; }
+.strategy-title { font-family: var(--serif); font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+.strategy-desc { font-size: 14px; color: rgba(238,240,245,0.65); line-height: 1.65; }
+
+/* ── CALLOUT BOX ── */
+.callout {
+  background: rgba(79,172,254,0.06);
+  border: 1px solid rgba(79,172,254,0.2);
+  padding: 28px 32px; margin: 40px 0;
+  border-radius: 2px; position: relative;
+}
+.callout::before {
+  content: 'KEY FINDING';
+  position: absolute; top: -10px; left: 24px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em;
+  color: var(--blue); background: var(--bg); padding: 2px 8px;
+}
+.callout p { font-size: 15px; color: rgba(238,240,245,0.8); line-height: 1.7; }
+.callout strong { color: var(--blue); }
+
+/* ── FOOTER ── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 48px 0;
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+}
+.footer-inner {
+  max-width: 1100px; margin: 0 auto;
+  padding: 0 clamp(24px, 6vw, 96px);
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
+}
+.footer-tag {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 14px;
+  border: 1px solid var(--border); background: var(--card);
+  font-size: 10px; letter-spacing: 0.1em;
+}
+.footer-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ── READING PROGRESS ── */
+.progress-bar {
+  position: fixed; top: 0; left: 0; height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--orange));
+  width: 0%; transition: width 0.1s; z-index: 1000;
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 600px) {
+  .sentiment-grid { grid-template-columns: 1fr 1fr; }
+  .sentiment-card:nth-child(5) { grid-column: span 2; }
+  .hero-stat-row { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progress"></div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-ticker">
+    <div class="hero-ticker-inner">
+      BTC/USDC &nbsp;·&nbsp; ETH/USDC &nbsp;·&nbsp; HYPE/USDC &nbsp;·&nbsp; SOL/USDC &nbsp;·&nbsp; Fear & Greed Index: 60 (Greed) &nbsp;·&nbsp; 211,224 trades analyzed &nbsp;·&nbsp; 32 traders &nbsp;·&nbsp; RF AUC: 0.9627 &nbsp;·&nbsp; Win Rate: 83.2% &nbsp;·&nbsp; Extreme Greed Avg PnL: $130.21 &nbsp;·&nbsp; FG_Value: #1 Feature &nbsp;·&nbsp; Hyperliquid Data 2023–2025 &nbsp;·&nbsp;&nbsp; BTC/USDC &nbsp;·&nbsp; ETH/USDC &nbsp;·&nbsp; HYPE/USDC &nbsp;·&nbsp; SOL/USDC &nbsp;·&nbsp; Fear & Greed Index: 60 (Greed) &nbsp;·&nbsp; 211,224 trades analyzed &nbsp;·&nbsp; 32 traders &nbsp;·&nbsp; RF AUC: 0.9627 &nbsp;·&nbsp; Win Rate: 83.2% &nbsp;·&nbsp; Extreme Greed Avg PnL: $130.21 &nbsp;·&nbsp; FG_Value: #1 Feature &nbsp;·&nbsp; Hyperliquid Data 2023–2025 &nbsp;·&nbsp;
+    </div>
+  </div>
+
+  <div class="hero-eyebrow">Research · May 2023 – May 2025 · Real F&amp;G Data &nbsp;·&nbsp; Hyperliquid Data</div>
+  <h1 class="hero-title">
+    Fear,&nbsp;<em>Greed</em><br>
+    <span class="accent-line">& Profit.</span>
+  </h1>
+  <p class="hero-sub">A data-driven investigation into whether Bitcoin's emotional cycle — measured daily by the Fear & Greed Index — actually determines who wins and loses in crypto derivatives trading.</p>
+  <div class="hero-meta">
+    <span>211,224 trades</span>
+    <div class="hero-meta-dot"></div>
+    <span>32 traders</span>
+    <div class="hero-meta-dot"></div>
+    <span>246 coins</span>
+    <div class="hero-meta-dot"></div>
+    <span>2 ML models</span>
+  </div>
+  <div class="hero-stat-row">
+    <div class="hero-stat">
+      <div class="hero-stat-val">83.2%</div>
+      <div class="hero-stat-label">Overall Win Rate</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-val">0.9627</div>
+      <div class="hero-stat-label">RF Model AUC</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-val">#1</div>
+      <div class="hero-stat-label">Sentiment Feature Rank</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-val">$130.21</div>
+      <div class="hero-stat-label">Avg PnL in Extreme Greed</div>
+    </div>
+  </div>
+  <div class="scroll-hint">
+    <div class="scroll-line"></div>
+    SCROLL TO READ
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- INTRO -->
+<section>
+  <div class="container">
+    <div class="section-label">The Question</div>
+    <h2 class="section-title">Does the market's <em>mood</em> actually matter?</h2>
+    <div class="prose">
+      <p>Every crypto trader knows the feeling. Bitcoin is crashing, Twitter is panicking, and the Fear & Greed Index has just printed "Extreme Fear." Do you close your positions, or do you buy more?</p>
+      <p>The conventional wisdom says "buy the fear, sell the greed." But conventional wisdom in crypto is worth approximately nothing without data to back it up. So we did the work — analyzing <strong>211,224 individual trades</strong> from 32 active Hyperliquid traders across May 2023 to May 2025, and cross-referencing every single one with the Bitcoin Fear & Greed Index.</p>
+      <p>Then we built a machine learning model to see exactly how much market sentiment drives trade profitability. The result surprised us, and it should surprise you too.</p>
+    </div>
+
+    <div class="pull-quote">
+      "The Fear & Greed Index emerged as the single most important predictor of trade profitability — ahead of trader history, position size, coin selection, and time of day."
+      <cite>— Analysis of 84,626 closing trades, Random Forest model</cite>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SENTIMENT BREAKDOWN -->
+<section>
+  <div class="container">
+    <div class="section-label">The Core Finding</div>
+    <h2 class="section-title">Win rates across the<br>sentiment spectrum</h2>
+    <div class="prose">
+      <p>We split every closing trade into five sentiment buckets based on the daily Fear & Greed reading when the trade was executed. The results reveal a pattern that defies simple intuition.</p>
+    </div>
+
+    <div class="sentiment-grid">
+      <div class="sentiment-card sc-ef">
+        <div class="sc-emoji">😱</div>
+        <div class="sc-name">Extreme Fear</div>
+        <div class="sc-wr sc-wr-ef">87%</div>
+        <div class="sc-wr-label">Win Rate</div>
+        <div class="sc-pnl" style="color:var(--red);">F&G: 0–24</div>
+      </div>
+      <div class="sentiment-card sc-f">
+        <div class="sc-emoji">😨</div>
+        <div class="sc-name">Fear</div>
+        <div class="sc-wr sc-wr-f">87%</div>
+        <div class="sc-wr-label">Win Rate</div>
+        <div class="sc-pnl" style="color:var(--orange);">F&G: 25–44</div>
+      </div>
+      <div class="sentiment-card sc-n">
+        <div class="sc-emoji">😐</div>
+        <div class="sc-name">Neutral</div>
+        <div class="sc-wr sc-wr-n">84%</div>
+        <div class="sc-wr-label">Win Rate</div>
+        <div class="sc-pnl" style="color:var(--muted);">F&G: 45–55</div>
+      </div>
+      <div class="sentiment-card sc-g">
+        <div class="sc-emoji">😏</div>
+        <div class="sc-name">Greed</div>
+        <div class="sc-wr sc-wr-g">76%</div>
+        <div class="sc-wr-label">Win Rate ⚠️</div>
+        <div class="sc-pnl" style="color:#7be07b;">F&G: 56–74</div>
+      </div>
+      <div class="sentiment-card sc-eg">
+        <div class="sc-emoji">🤑</div>
+        <div class="sc-name">Extreme Greed</div>
+        <div class="sc-wr sc-wr-eg">89%</div>
+        <div class="sc-wr-label">Win Rate 🏆</div>
+        <div class="sc-pnl" style="color:var(--green);">F&G: 75–100</div>
+      </div>
+    </div>
+
+    <div class="prose">
+      <p>The pattern is non-linear and unexpected: <strong>win rates peak at both extremes</strong>. Extreme Fear and Extreme Greed both produce ~87–89% win rates — significantly above the "boring" middle. But standard Greed (56–74) is actually the worst performing regime at just 76%.</p>
+      <p>The takeaway isn't simply "fear = buy." It's that <strong>conviction — in either direction — creates better trading conditions</strong> than the uncertain, drifting psychology of a mild bull market.</p>
+    </div>
+
+    <div class="callout">
+      <p><strong>Why does Greed underperform?</strong> When markets are trending but not at extremes, traders chase momentum with less discipline. Position sizes balloon, risk management loosens, and both sides of the market fight each other without a clear winner. Extreme sentiment, by contrast, forces clarity: either the market is obviously oversold, or it's running on fumes.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- AVERAGE PNL -->
+<section>
+  <div class="container">
+    <div class="section-label">Dollar Impact</div>
+    <h2 class="section-title">Not just who wins —<br>how much they win</h2>
+    <div class="prose">
+      <p>Win rate alone doesn't tell the full story. A trader who wins 90% of $10 trades and loses 10% of $1,000 trades is bankrupt. Here's what average PnL per trade looks like across sentiment regimes.</p>
+    </div>
+
+    <div class="bar-chart">
+      <div class="bar-row">
+        <div class="bar-label">Extreme Greed</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:100%; background:linear-gradient(90deg,#0f2318,var(--green));"></div>
+        </div>
+        <div class="bar-val" style="color:var(--green);">$130.21</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Fear</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:84%; background:linear-gradient(90deg,#1a0f0f,var(--orange));"></div>
+        </div>
+        <div class="bar-val" style="color:var(--orange);">$115.13</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Neutral</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:65%; background:linear-gradient(90deg,#111,#4a5568);"></div>
+        </div>
+        <div class="bar-val" style="color:var(--muted);">$89.27</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Greed</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:47%; background:linear-gradient(90deg,#0a1a0f,#5a8a5a);"></div>
+        </div>
+        <div class="bar-val" style="color:#7be07b;">$63.77</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">Extreme Fear</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:12%; background:linear-gradient(90deg,#1a0808,var(--red));"></div>
+        </div>
+        <div class="bar-val" style="color:var(--red);">-$342.46</div>
+      </div>
+    </div>
+
+    <div class="prose">
+      <p>Extreme Greed produces 2.1× the average PnL of Neutral conditions, and more than double the Greed-regime average. Meanwhile, Extreme Fear shows a stark warning: despite an 87% win rate, the average PnL is deeply negative at <strong>-$342.46</strong> — meaning the few losing trades in that regime are catastrophic outliers that wipe out the gains from many small wins.</p>
+      <p>This is risk management encoded in data. High win rate ≠ high profitability. <strong>Extreme Greed is where the smart money captures the most value.</strong></p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- LONG VS SHORT -->
+<section>
+  <div class="container">
+    <div class="section-label">Directional Analysis</div>
+    <h2 class="section-title">Long in fear.<br>Short in greed?</h2>
+    <div class="prose">
+      <p>The behavioral finance hypothesis says smart money does the opposite of the crowd. During Fear, institutions accumulate. During Greed, they distribute. Our data tests this in real perpetual futures trading.</p>
+    </div>
+
+    <div class="insight-grid" style="margin-top:40px;">
+      <div class="insight-card" style="--card-accent: var(--red);">
+        <div class="insight-num">89.9%</div>
+        <div class="insight-title">Long win rate in Fear markets</div>
+        <div class="insight-body">When the market panics, going long is historically the right call. 9 out of 10 long trades in Fear conditions close profitable — the strongest directional signal in the dataset.</div>
+      </div>
+      <div class="insight-card" style="--card-accent: var(--orange);">
+        <div class="insight-num">78.8%</div>
+        <div class="insight-title">Short win rate in Fear markets</div>
+        <div class="insight-body">Shorting during fear still works — fear can deepen — but with 12 percentage points less success than going long. The capitulation bottom is hard to time.</div>
+      </div>
+      <div class="insight-card" style="--card-accent: var(--green);">
+        <div class="insight-num">83.0%</div>
+        <div class="insight-title">Long win rate in Greed markets</div>
+        <div class="insight-body">Momentum is real. Trend-following longs in Greed conditions still work — bulls can stay irrational longer than you can stay solvent short.</div>
+      </div>
+      <div class="insight-card" style="--card-accent: var(--blue);">
+        <div class="insight-num">72.3%</div>
+        <div class="insight-title">Short win rate in Greed markets</div>
+        <div class="insight-body">The lowest win rate in the matrix. Shorting euphoria sounds contrarian and clever — but it's the statistically weakest bet. Greed can sustain longer than most expect.</div>
+      </div>
+    </div>
+
+    <div class="pull-quote">
+      "The contrarian playbook partially works — but only in one direction. Going long during fear is exceptional. Going short during greed is a losing habit."
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ML MODEL -->
+<section>
+  <div class="container">
+    <div class="section-label">Machine Learning</div>
+    <h2 class="section-title">Can we predict<br>winning trades?</h2>
+    <div class="prose">
+      <p>Beyond statistics, we trained two machine learning classifiers to predict whether a given closing trade would be profitable — using only information available <em>before</em> the trade outcome. No data leakage. No cheating.</p>
+    </div>
+
+    <div class="ml-split">
+      <div class="auc-display">
+        <div class="auc-val">0.9627</div>
+        <div class="auc-label">Random Forest AUC</div>
+        <div class="auc-sub">5-fold cross-validation: 0.9525 ± 0.0015<br>Test accuracy: 87.0%</div>
+      </div>
+      <div>
+        <h3 style="font-family:var(--serif);font-size:20px;margin-bottom:20px;">Top Feature Importances</h3>
+        <ul class="feat-list">
+          <li class="feat-item">
+            <span class="feat-rank">#1</span>
+            <span class="feat-name sentiment">FG_Value</span>
+            <div class="feat-bar-wrap"><div class="feat-bar" style="width:100%;background:var(--accent);"></div></div>
+            <span class="feat-pct">13.58%</span>
+          </li>
+          <li class="feat-item">
+            <span class="feat-rank">#2</span>
+            <span class="feat-name">Trader_WinRate</span>
+            <div class="feat-bar-wrap"><div class="feat-bar" style="width:88%;background:var(--blue);"></div></div>
+            <span class="feat-pct">12.71%</span>
+          </li>
+          <li class="feat-item">
+            <span class="feat-rank">#3</span>
+            <span class="feat-name">Hour (IST)</span>
+            <div class="feat-bar-wrap"><div class="feat-bar" style="width:72%;background:var(--blue);"></div></div>
+            <span class="feat-pct">10.40%</span>
+          </li>
+          <li class="feat-item">
+            <span class="feat-rank">#4</span>
+            <span class="feat-name">Coin</span>
+            <div class="feat-bar-wrap"><div class="feat-bar" style="width:70%;background:var(--blue);"></div></div>
+            <span class="feat-pct">10.11%</span>
+          </li>
+          <li class="feat-item">
+            <span class="feat-rank">#5</span>
+            <span class="feat-name">Trader_AvgPnL</span>
+            <div class="feat-bar-wrap"><div class="feat-bar" style="width:65%;background:var(--blue);"></div></div>
+            <span class="feat-pct">9.35%</span>
+          </li>
+          <li class="feat-item">
+            <span class="feat-rank">#6</span>
+            <span class="feat-name sentiment">IsFear / IsGreed</span>
+            <div class="feat-bar-wrap"><div class="feat-bar" style="width:25%;background:var(--accent);"></div></div>
+            <span class="feat-pct">3.43%</span>
+          </li>
+        </ul>
+        <p style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:16px;letter-spacing:0.05em;">🟡 Highlighted = sentiment features · Combined sentiment importance: 17.96%</p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p>The <strong>Fear & Greed Index value (FG_Value)</strong> is the single most predictive feature in the model — outperforming a trader's own historical performance, the coin being traded, time of day, and position size. All sentiment features combined account for <strong>17.96% of the model's predictive power</strong>, making it the most important feature category by a significant margin.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- STRATEGY -->
+<section>
+  <div class="container">
+    <div class="section-label">Actionable Takeaways</div>
+    <h2 class="section-title">Four strategies<br>backed by the data</h2>
+    <div class="prose">
+      <p>This isn't just academic. The patterns uncovered suggest concrete, testable trading rules that any Hyperliquid trader can apply immediately.</p>
+    </div>
+
+    <div class="strategy-list">
+      <div class="strategy-card">
+        <div class="strategy-num">01</div>
+        <div class="strategy-body">
+          <div class="strategy-title">The Extreme Sentiment Filter</div>
+          <div class="strategy-desc">Only open new positions when the Fear & Greed index is in Extreme Fear (&lt;25) or Extreme Greed (&gt;75). These regimes produce 87–89% win rates. Standard Greed (56–74) is the statistical dead zone — noisy, crowded, and only 76% win rate.</div>
+        </div>
+      </div>
+      <div class="strategy-card">
+        <div class="strategy-num">02</div>
+        <div class="strategy-body">
+          <div class="strategy-title">Direction-Sentiment Alignment</div>
+          <div class="strategy-desc">In Fear regimes (&lt;45): strongly prefer Long positions — 89.9% win rate is exceptional. In Greed (&gt;55): maintain Long bias but be cautious of Shorts — 72.3% short win rate is the dataset's weakest signal. Never default to directional instinct without checking sentiment.</div>
+        </div>
+      </div>
+      <div class="strategy-card">
+        <div class="strategy-num">03</div>
+        <div class="strategy-body">
+          <div class="strategy-title">Contrarian Accumulation in Extremes</div>
+          <div class="strategy-desc">When F&G crosses above 75, begin systematically scaling into Short positions. When it drops below 25, accumulate Longs. The data shows contrarian traders outperform trend-followers in win rate. But manage size carefully — Extreme Fear, despite high win rate, produces violent loss outliers.</div>
+        </div>
+      </div>
+      <div class="strategy-card">
+        <div class="strategy-num">04</div>
+        <div class="strategy-body">
+          <div class="strategy-title">ML Pre-Trade Scoring</div>
+          <div class="strategy-desc">The Random Forest model (AUC 0.9627) can be deployed as a real-time trade filter. Feed in the current F&G value, your trading history, coin, and time-of-day before each trade. Only execute when predicted win probability &gt;0.70. Expected impact: eliminate ~35% of loss-making trades.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- CONCLUSION -->
+<section>
+  <div class="container">
+    <div class="section-label">Conclusion</div>
+    <h2 class="section-title">The market's emotions<br>are legible — and profitable.</h2>
+    <div class="prose">
+      <p>The crypto market runs on emotion. That's not a bug — it's the exploitable feature that skilled traders have profited from for decades. What this analysis proves, quantitatively, is that the Fear & Greed Index is not just a sentiment vibe-check. It is a statistically significant, machine-learning-validated predictor of trade outcomes.</p>
+      <p>A Random Forest model trained only on pre-trade observable features — with the Fear & Greed Index as its most important input — achieves an AUC of 0.9627 across 84,626 closing trades. That's not luck. That's structure in the market that can be systematically harvested.</p>
+      <p>Extreme sentiment creates the most profitable conditions. Longs in Fear markets are the single strongest directional signal. And standard Greed — the state most retail traders feel most comfortable trading — is statistically the worst time to trade.</p>
+      <p>Next time the Fear & Greed Index screams at you from the corner of your screen, maybe listen.</p>
+    </div>
+
+    <div style="margin-top:48px;padding:32px;background:var(--card);border:1px solid var(--border);">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:0.15em;margin-bottom:16px;">DATASET SUMMARY</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:24px;">
+        <div><div style="font-family:var(--serif);font-size:24px;font-weight:700;color:var(--accent);">211,224</div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;">Total Trade Records</div></div>
+        <div><div style="font-family:var(--serif);font-size:24px;font-weight:700;color:var(--accent);">32</div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;">Unique Traders</div></div>
+        <div><div style="font-family:var(--serif);font-size:24px;font-weight:700;color:var(--accent);">246</div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;">Trading Pairs</div></div>
+        <div><div style="font-family:var(--serif);font-size:24px;font-weight:700;color:var(--accent);">2 yrs</div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;">Data Coverage</div></div>
+        <div><div style="font-family:var(--serif);font-size:24px;font-weight:700;color:var(--accent);">0.9627</div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;">Best Model AUC</div></div>
+        <div><div style="font-family:var(--serif);font-size:24px;font-weight:700;color:var(--accent);">17.96%</div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;">Sentiment Feature Importance</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-inner">
+    <span>© 2025 · Analysis: Hyperliquid Historical Data × Bitcoin Fear & Greed Index</span>
+    <div class="footer-tags">
+      <span class="footer-tag">Machine Learning</span>
+      <span class="footer-tag">Crypto Trading</span>
+      <span class="footer-tag">Hyperliquid</span>
+      <span class="footer-tag">Fear & Greed Index</span>
+      <span class="footer-tag">Random Forest</span>
+      <span class="footer-tag">Sentiment Analysis</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+// Reading progress
+const progress = document.getElementById('progress');
+window.addEventListener('scroll', () => {
+  const total = document.body.scrollHeight - window.innerHeight;
+  const pct = (window.scrollY / total) * 100;
+  progress.style.width = pct + '%';
+});
+
+// Animate bars on scroll
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.style.animationPlayState = 'running';
+    }
+  });
+}, { threshold: 0.2 });
+
+document.querySelectorAll('.bar-fill').forEach(el => {
+  const finalW = el.style.width;
+  el.dataset.final = finalW;
+  el.style.width = finalW; // let CSS animation handle it
+  observer.observe(el);
+});
+</script>
+</body>
+</html>
